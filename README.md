@@ -1,134 +1,226 @@
 # Photo Gallery
 
-A Flutter image gallery on top of the [Pixabay API](https://pixabay.com/api/docs/). It loads
-photos into an infinite scrolling grid, opens any photo into a detail screen where you can read
-about it and download it, and keeps a favourites list that survives app restarts.
+A Flutter image gallery app built using the [Pixabay API](https://pixabay.com/api/docs/).
 
-## What it does
+The app allows users to browse and search photos, open a photo to view its details, download images, and save photos as favourites. Favourites are stored locally, so they remain available even after restarting the app.
 
-- Grid of photos that gets wider or narrower depending on the screen
-- Infinite scroll with a "load more" footer, plus pull to refresh
-- Search anything on Pixabay
-- Detail screen with the description, the photographer, the resolution and the stats
-- Download with a progress bar, and when it's done the snackbar has an "OPEN FILE" action
-- Favourites stored on the phone and shared across all screens
-- Loading, empty and error states on every screen, with a retry
-- Light and dark theme follow the system setting
-- Images are cached and decoded at a limited size so scrolling stays smooth
+## Features
+
+* Responsive photo grid that adjusts based on screen size
+* Infinite scrolling with a load-more option
+* Pull-to-refresh
+* Search photos using Pixabay
+* Photo details including description, photographer, resolution, and stats
+* Download photos with download progress
+* Option to open the downloaded file after the download is completed
+* Add/remove photos from favourites
+* Favourites are saved locally and remain available after restarting the app
+* Loading, empty, and error states with retry options
+* Light and dark theme based on the system setting
+* Image caching and limited image decoding size for smoother scrolling
 
 ## Setup
 
-You'll need Flutter 3.32+ (Dart 3.8).
+### Requirements
+
+* Flutter 3.32+
+* Dart 3.8+
+
+Install the dependencies:
 
 ```bash
 flutter pub get
+```
+
+Run the application using:
+
+```bash
 flutter run --dart-define-from-file=.env
 ```
 
-A key is free and takes a minute to create on https://pixabay.com/api/docs/. If you don't want
-to pass it on every run, paste it into `_localApiKey` in `lib/helpers/app_constants.dart`
-instead. With no key at all the app doesn't crash, it shows an error screen that tells you
-what's missing.
+### Pixabay API Key
 
-After editing anything under `lib/data/`, rebuild the mappers:
+The application requires a Pixabay API key.
+
+You can create a free API key from:
+
+https://pixabay.com/api/docs/
+
+Add the API key to the `.env` file and run the application using the command mentioned above.
+
+If you don't want to use the `.env` file, you can also add the key to `_localApiKey` in:
+
+```text
+lib/helpers/app_constants.dart
+```
+
+If no API key is provided, the application will not crash. Instead, it will show an error message explaining that the API key is missing.
+
+### Code Generation
+
+If any files inside `lib/data/` are modified, run the following command to regenerate the mappers:
 
 ```bash
 dart run build_runner build
 ```
 
-## Project structure
+## Project Structure
 
-```
+```text
 lib/
-├── main.dart                  # entry point, all get_it registrations (setupServiceLocator)
-├── app.dart                   # MaterialApp, theme, root provider
-├── data/                      # dart_mappable data classes
-│   ├── api_response.dart      # wrapper for the Pixabay response
-│   └── image_data.dart        # one photo, mapper generated next to it as *.mapper.dart
+├── main.dart
+├── app.dart
+├── data/
+│   ├── api_response.dart
+│   └── image_data.dart
 ├── services/
 │   ├── api_service/
-│   │   └── image_service/     # IImageService + ImageService
-│   └── platform_service/      # one folder per service: i_<name>.dart and <name>.dart
-│       ├── local_storage_service/   # shared_preferences
-│       ├── download_service/        # Dio download with progress
-│       └── file_opener_service/     # open_filex
+│   │   └── image_service/
+│   │       ├── i_image_service.dart
+│   │       └── image_service.dart
+│   └── platform_service/
+│       ├── local_storage_service/
+│       ├── download_service/
+│       └── file_opener_service/
 ├── helpers/
-│   ├── app_constants.dart     # base url, api key, page size, storage keys
-│   ├── extensions.dart        # context and int extension methods
-│   └── favorites_provider.dart   # favourites state for the whole app, saved locally
+│   ├── app_constants.dart
+│   ├── extensions.dart
+│   └── favorites_provider.dart
 └── pages/
-    ├── reusables/             # widgets used on more than one screen
+    ├── reusables/
     └── screens/
-        ├── home/      homescreenview.dart / homescreenvm.dart / homescreenmodel.dart
-        ├── image/     imagescreenview.dart / imagescreenvm.dart / imagescreenmodel.dart
-        └── favorites/ favoritesscreenview.dart / favoritesscreenvm.dart / favoritesscreenmodel.dart
+        ├── home/
+        ├── image/
+        └── favorites/
 ```
 
-## How it's built
+## Architecture
 
-Pretty standard MVVM:
+The application follows an MVVM-based structure.
 
-- **View** (`*view.dart`) only renders. It doesn't know the services exist. When the user does
-  something it calls a method on the view model, and it reads state straight off it, for example
-  `vm.status`, `vm.images`, `vm.errorMessage`. No getters in the way, those fields are inherited
-  from the model.
-- **Model** (`*model.dart`) is a ChangeNotifier that owns the screen state: a handful of public
-  variables like status, images, errorMessage and the pagination flags. Each variable has an
-  update function next to it, `updateStatus`, `updateImages` and so on, and all that function
-  does is write the value and call `notifyListeners()`.
-- **ViewModel** (`*vm.dart`) extends its model, so it gets the state, the update functions and
-  the services the model received in its constructor. The class itself is just methods: they
-  call a service and feed the result into the update functions. Every public method sits in a
-  try/catch, whatever goes wrong gets turned into a readable message and stored on the model
-  instead of blowing up the widget tree. The view models are the part that's unit tested.
+### View
 
-For state the app uses provider. Every screen wraps its view model in a ChangeNotifierProvider,
-and FavoritesProvider is provided once at the root so the tiles, the detail screen and the
-favourites screen all watch the same list.
+The view is mainly responsible for displaying the UI.
 
-Dependency injection is plain get_it and all of it lives in `setupServiceLocator()` in
-`main.dart`. Services are registered there, the models take their services through the
-constructor and the view model inherits them by extending the model. Swapping one
-implementation, a fake image service in the tests for example, is a one line change.
+It doesn't directly communicate with the services. User actions are passed to the ViewModel, and the view reads the current state from it.
 
-Services are grouped in two folders, and every service gets its own folder with an interface
-(`i_<name>.dart`) and the implementation (`<name>.dart`):
+For example:
 
-- `api_service/image_service` talks to Pixabay with Dio.
-- `platform_service` covers the device side: `local_storage_service` for shared_preferences,
-  `download_service` for the Dio download with progress, `file_opener_service` for open_filex.
+```text
+vm.status
+vm.images
+vm.errorMessage
+```
 
-The service classes hold no state, only methods, so the Dio instance or the SharedPreferences
-object is created inside the method that needs it. Every service method is wrapped in a
-try/catch and there are no custom exception classes anywhere. A DioException or an Exception
-with a readable message simply travels up to the view model that called it, anything else gets
-wrapped in a plain Exception on the way out. HomeScreenVM is the one that turns a DioException
-into the message you actually see (no internet, timeout, bad API key, and so on),
-ImageScreenVM just shows a short "download failed" message.
+### Model
 
-Instead of handwritten `fromJson`/`toJson` I went with dart_mappable. The classes in
-`lib/data/` carry a `@MappableClass()` annotation and `dart run build_runner build` generates
-the mappers. Favourites are written with `image.toMap()` and read back with
-`ImageDataMapper.fromMap(...)`, so everything stays on the device.
+The model holds the state of each screen.
+
+It extends `ChangeNotifier` and contains values such as:
+
+* Loading status
+* Image list
+* Error messages
+* Pagination information
+
+The model also contains update methods such as `updateStatus()` and `updateImages()`. These update the state and call `notifyListeners()`.
+
+### ViewModel
+
+The ViewModel contains the actual screen logic.
+
+It calls the required services, processes the response, and updates the model state.
+
+The ViewModels also handle errors and convert them into messages that can be shown to the user.
+
+The ViewModels are also covered by unit tests.
+
+## State Management
+
+The project uses **Provider** for state management.
+
+Each screen provides its own ViewModel using `ChangeNotifierProvider`.
+
+`FavoritesProvider` is provided at the application level because the favourites list is shared between the home screen, detail screen, and favourites screen.
+
+## Dependency Injection
+
+The project uses **get_it** for dependency injection.
+
+All service registrations are handled in:
+
+```text
+setupServiceLocator()
+```
+
+inside `main.dart`.
+
+Services are passed through constructors, which also makes it easier to replace them with fake implementations during testing.
+
+## Services
+
+Services are separated from the UI and ViewModels.
+
+### Image Service
+
+The image service communicates with Pixabay using Dio and handles the API requests.
+
+### Local Storage Service
+
+`shared_preferences` is used to store the favourites locally.
+
+### Download Service
+
+Dio is used to download images and track the download progress.
+
+### File Opener Service
+
+`open_filex` is used to open a downloaded image using an application available on the device.
+
+Each service has an interface and an implementation so that the implementation can be replaced easily when required.
+
+## Data Mapping
+
+The project uses **dart_mappable** instead of manually writing `fromJson()` and `toJson()` methods.
+
+The models in `lib/data/` use `@MappableClass()`, and the mapper files are generated using `build_runner`.
+
+Favourites are converted to maps before storing them locally and converted back into `ImageData` objects when they are loaded.
 
 ## Tests
+
+Run the tests using:
 
 ```bash
 flutter test
 ```
 
-43 tests in total. They cover the view models (paging, search, refresh, the error paths,
-download progress, opening a file, favourites mirroring), the favourites provider and a few of
-the reusable widgets. The fakes they use live in `test/helpers/`.
+There are **43 tests** covering areas such as:
 
-## Assumptions and limitations
+* ViewModel logic
+* Pagination
+* Search
+* Pull-to-refresh
+* Error handling
+* Download progress
+* File opening
+* Favourite handling
+* FavoritesProvider
+* Reusable widgets
 
-- Pixabay sends the description of a photo as its `tags`, that's what the detail screen shows
-  under "Description".
-- Downloads go to the app's private documents directory. That needs no storage permission on
-  Android 10+ or iOS, but you won't find the file in the gallery app afterwards.
-- Opening a finished download uses the system viewer through the snackbar's "OPEN FILE" action.
-  If nothing on the phone can open it, the app just says so.
-- From the bonus list: the hero animation between grid and detail and pull to refresh are in.
-  Masonry layout, category filters, sharing and saving to the system gallery are not.
-- Screenshots / recording still to be attached to the submission.
+Fake services used for testing are available under:
+
+```text
+test/helpers/
+```
+
+## Assumptions and Limitations
+
+* Pixabay provides the photo tags as part of the response, so the `tags` value is used as the photo description on the detail screen.
+* Downloaded files are stored in the application's private documents directory.
+* Because of this, the downloaded files may not appear directly in the device gallery.
+* The downloaded file can be opened using the system viewer through the **OPEN FILE** action.
+* If the device doesn't have a suitable application to open the file, the app displays an appropriate message.
+* The hero animation between the grid and detail screen and pull-to-refresh were implemented from the bonus requirements.
+* Masonry layout, category filters, sharing, and saving directly to the system gallery were not implemented.
+* Screenshots/screen recording are included separately with the submission.
